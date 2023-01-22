@@ -1,5 +1,6 @@
 from tkinter import StringVar, filedialog
 import ttkbootstrap as ttkb
+from ftp import ftp_client
 
 # Root window
 ROOT = ttkb.Window(themename="darkly", title="ShroofianSalamanderCrypt", size=[1280, 360])
@@ -72,6 +73,7 @@ def create_upload_buttons_frame() -> ttkb.Frame:
         cursor="hand1",
         text="Unsecure Upload (for testing only!)",
         style=stylize_btn("warning.Outline"),
+        command=upload
     )
     unsecure_upload_btn.pack(side=ttkb.RIGHT, padx=5)
 
@@ -86,6 +88,10 @@ def browse() -> str:
     filename = filedialog.askopenfilename()
     if filename != "":
         FILEPATH.set(filename)
+
+
+def upload():
+    ftp_client.upload(FILEPATH.get(), "7amada")
 
 
 def start():
