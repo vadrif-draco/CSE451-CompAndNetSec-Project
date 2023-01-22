@@ -14,13 +14,9 @@ def encrypt(message, initial_key):
     state = __add_round_key(state, keys[0])
     for i in range(1, 10):
         state = __substitute_bytes(state)
-        print(f"SubBytes:\n{state}\n\n")
         state = __shift_rows(state)
-        print(f"ShiftRows:\n{state}\n\n")
         state = __mix_cols(state)
-        print(f"MixColumns:\n{state}\n\n")
         state = __add_round_key(state, keys[i])
-        print(f"AddRoundKey:\n{state}\n\n")
     state = __substitute_bytes(state)
     state = __shift_rows(state)
     state = __add_round_key(state, keys[10])
@@ -40,11 +36,11 @@ def decrypt(cipher, initial_key):
 
     # Proceed with decryption logic
     state = __add_round_key(state, keys[10])
-    for i in range(9, 0):
-        state = __substitute_bytes(state, inverse=True)
+    for i in range(9, 0, -1):
         state = __shift_rows(state, inverse=True)
-        state = __mix_cols(state, inverse=True)
+        state = __substitute_bytes(state, inverse=True)
         state = __add_round_key(state, keys[i])
+        state = __mix_cols(state, inverse=True)
     state = __shift_rows(state, inverse=True)
     state = __substitute_bytes(state, inverse=True)
     state = __add_round_key(state, keys[0])
