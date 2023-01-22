@@ -5,6 +5,12 @@ __FTP_PORT = 6060
 __FTP_USER = "test"
 __FTP_PASS = "password"
 
+def getFileList():
+    ftp = ftplib.FTP()
+    ftp.connect(__FTP_HOST)
+    ftp.login(__FTP_USER, __FTP_PASS)
+    ls = ftp.nlst()
+    return ls
 
 def upload(file_path, file_name):
     # file_name: the name of file you want to upload to the FTP server
