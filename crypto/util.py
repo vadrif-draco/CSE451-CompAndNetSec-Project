@@ -1,20 +1,9 @@
 import numpy as np
 
 
-def permute(original, permutation_table):
-
-    permuted = np.zeros_like(permutation_table)
-
-    # TODO: Vectorized/parallelized implementation
-    for index, target_index in enumerate(permutation_table):
-        permuted[index] = original[target_index]
-
-    return permuted
-
-
 def feistel_round(left_half, right_half, key, function_f):
 
-    return right_half, np.logical_xor(left_half, function_f(right_half, key), dtype=np.int)
+    return right_half, np.bitwise_xor(left_half, function_f(right_half, key))
 
 
 def bin_vec_to_dec_val(binary_vector):
