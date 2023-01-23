@@ -3,7 +3,7 @@ from gui import main
 from crypto import des, aes128, util
 
 if __name__ == "__main__":
-    # main.start()
+    main.start()
     # print(des.encrypt([
     #     0, 0, 0, 0,
     #     0, 0, 0, 0,
@@ -62,3 +62,5 @@ if __name__ == "__main__":
     cipher = aes128.encrypt(message, key)
     print(cipher)
     print(aes128.decrypt(cipher, key))
+    # ftp_client.upload("C:\\Users\\Administrator\\Desktop\\7amada_out.txt", "7amada.txt")
+    # ftp_client.download("C:\\Users\\Administrator\\Desktop\\7amada_in.txt", "7amada.txt")
