@@ -1,9 +1,12 @@
+import numpy as np
 from gui import main
-from crypto import des
-from ftp import ftp_client
+from crypto import des, aes128, util
 
 if __name__ == "__main__":
+    # -------------------- GUI --------------------
     # main.start()
+
+    # -------------------- DES --------------------
     key = [
         0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
@@ -28,5 +31,33 @@ if __name__ == "__main__":
     recovered_plaintext = des.decrypt(cipher, key)
     print(cipher)
     print(recovered_plaintext)
+    
+    # -------------------- AES --------------------
+    message = np.array([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ])
+    key = np.array([
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ])
+
+    cipher = aes128.encrypt(message, key)
+    print(cipher)
+    print(aes128.decrypt(cipher, key))
+    
+    # -------------------- FTP --------------------
     # ftp_client.upload("C:\\Users\\Administrator\\Desktop\\7amada_out.txt", "7amada.txt")
     # ftp_client.download("C:\\Users\\Administrator\\Desktop\\7amada_in.txt", "7amada.txt")
