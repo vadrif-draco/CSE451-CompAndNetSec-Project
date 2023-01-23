@@ -3,7 +3,37 @@ from . import util
 from . import des_tables as tables
 
 
-def des_substitution(message):
+def encrypt(message, key):
+
+    # Initial permutation
+    message = np.take(message, tables.INITIAL_PERMUTATION)
+
+    # Split message into left and right halves
+    message_left, message_right = message[:32], message[32:]
+
+    # Get subkeys to use in feistel rounds
+    subkeys = __generate_subkeys(key)
+
+    # 16 feistel rounds of DES black magic
+    for i in range(16):
+        message_left, message_right = \
+            util.feistel_round(message_left, message_right, subkeys[i], __feistel_function_f)
+
+    # 32-bit swap and concatenate
+    message = np.concatenate((message_right, message_left))
+
+    # Inverse initial permutation
+    message = np.take(message, tables.INVERSE_INITIAL_PERMUTATION)
+
+    return message
+
+
+def decrypt(cipher, key):
+    # TODO
+    pass
+
+
+def __substitution(message):
 
     # Split message into 8 pieces to get an 8x6 matrix
     message_split = np.hsplit(message, 8)
@@ -20,7 +50,7 @@ def des_substitution(message):
 
     # Get the mapped values from the 8 S-boxes and convert to their binary vector representations
     # TODO: Vectorized/parallelized implementation
-    message_subtitutions = np.zeros((8, 4))
+    message_subtitutions = np.zeros((8, 4), dtype=np.uint8)
     for i in range(8):
         message_subtitutions[i] = \
             util.dec_val_to_bin_vec(tables.S_BOXES[i][row_selectors[i]][column_selectors[i]])
@@ -31,29 +61,29 @@ def des_substitution(message):
     return message
 
 
-def des_feistel_function_f(message, round_key):
+def __feistel_function_f(message, round_key):
 
     # Expanded permutation (for diffusion)
-    message = util.permute(message, tables.EXPANSION_PERMUTATION)
+    message = np.take(message, tables.EXPANSION_PERMUTATION)
 
     # XOR with round key
-    message = np.logical_xor(message, round_key, dtype=np.int)
+    message = np.bitwise_xor(message, round_key)
 
     # Keyed substitution (8 Substitution-boxes) (anti differential cryptanalysis)
-    message = des_substitution(message)
+    message = __substitution(message)
 
     # Transposition (Permutation-box) (for even more diffusion and avalanche effect)
-    message = util.permute(message, tables.P_BOX)
+    message = np.take(message, tables.P_BOX)
 
-    # XXX: XOR with "mangler"? Mentioned in reference but not actually used in practice
+    # XOR with "mangler"? Mentioned in reference but not actually used in practice
 
     return message
 
 
-def des_generate_subkeys(key):
+def __generate_subkeys(key):
 
     # Use PC1 for initial conversion of 64-bit key to two 28-bit keys
-    key = util.permute(key, tables.PC1)
+    key = np.take(key, tables.PC1)
     left, right = key[:28], key[28:]
 
     # Now we define the key rotation schedule
@@ -65,31 +95,6 @@ def des_generate_subkeys(key):
     # Then generate the 16 subkeys by shifting based on rotation schedule and permutating with PC2
     for i in range(16):
         left, right = np.roll(left, -key_rot_sched[i]), np.roll(right, -key_rot_sched[i])
-        subkeys[i] = util.permute(np.concatenate((left, right)), tables.PC2)
+        subkeys[i] = np.take(np.concatenate((left, right)), tables.PC2)
 
     return subkeys
-
-
-def encrypt(message, key):
-
-    # Initial permutation
-    message = util.permute(message, tables.INITIAL_PERMUTATION)
-
-    # Split message into left and right halves
-    message_left, message_right = message[:32], message[32:]
-
-    # Get subkeys to use in feistel rounds
-    subkeys = des_generate_subkeys(key)
-
-    # 16 feistel rounds of DES black magic
-    for i in range(16):
-        message_left, message_right = \
-            util.feistel_round(message_left, message_right, subkeys[i], des_feistel_function_f)
-
-    # 32-bit swap and concatenate
-    message = np.concatenate((message_right, message_left))
-
-    # Inverse initial permutation
-    message = util.permute(message, tables.INVERSE_INITIAL_PERMUTATION)
-
-    return message
