@@ -29,8 +29,28 @@ def encrypt(message, key):
 
 
 def decrypt(cipher, key):
-    # TODO
-    pass
+
+    # Initial permutation
+    cipher = np.take(cipher, tables.INITIAL_PERMUTATION)
+
+    # Split cipher into left and right halves
+    cipher_left, cipher_right = cipher[:32], cipher[32:]
+
+    # Get subkeys to use in feistel rounds
+    subkeys = __generate_subkeys(key)
+
+    # 16 feistel rounds of DES black magic
+    for i in range(15, -1, -1):
+        cipher_left, cipher_right = \
+            util.feistel_round(cipher_left, cipher_right, subkeys[i], __feistel_function_f)
+
+    # 32-bit swap and concatenate
+    cipher = np.concatenate((cipher_right, cipher_left))
+
+    # Inverse initial permutation
+    cipher = np.take(cipher, tables.INVERSE_INITIAL_PERMUTATION)
+
+    return cipher
 
 
 def __substitution(message):
