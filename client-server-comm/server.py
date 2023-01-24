@@ -37,7 +37,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         conn, addr = s.accept()
         with conn:
             while True:
-                message = conn.recv(2048)
+                message = conn.recv(4096)
                 if not message:
                     break
                 key = pickle.loads(message)
