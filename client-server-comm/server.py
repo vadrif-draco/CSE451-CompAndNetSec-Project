@@ -12,7 +12,7 @@ def __send_ack(conn: socket) -> None:
     conn.send(b"ACK")
 
 def receive_public_key(conn: socket) -> rsa.RSAPublicKey:
-    public_key = __get_public_key(conn.recv(4096))
+    public_key = __get_public_key(pickle.loads(conn.recv(4096)))
     conn.send(b"AUTH")
     return public_key
     
@@ -51,12 +51,12 @@ def __send_file(filename: str, public_key: rsa.RSAPublicKey, conn: socket) -> No
 
 
 def send_keys(filename: str, public_key: rsa.RSAPublicKey, conn: socket) -> None:
-    file = f"{filename}-encrypted.keys"
+    file = f"/home/test/ftp/{filename}-encrypted.keys"
     __send_file(file, public_key, conn)
 
 
 def send_data(filename: str, extension: str, public_key: rsa.RSAPublicKey, conn: socket) -> None:
-    file = f"{filename}-encrypted.{extension}"
+    file = f"/home/test/ftp/{filename}-encrypted.{extension}"
     __send_file(file, public_key, conn)
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

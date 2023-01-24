@@ -9,7 +9,7 @@ HOST = "172.174.106.14"
 PORT = 10101
 
 def __decode_line(line: bytes, private_key: rsa.RSAPrivateKey) -> bytes:
-    return private_key.decrypt(
+    decrypted = private_key.decrypt(
         line,
         padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -17,6 +17,7 @@ def __decode_line(line: bytes, private_key: rsa.RSAPrivateKey) -> bytes:
             label=None
         )
     )
+    return decrypted
 
 
 def __generate_private_key() -> rsa.RSAPrivateKey:
@@ -62,7 +63,7 @@ def __send_filename_and_extension(filename: str, extension: str) -> None:
 
 
 def __receive_keys(filename: str, private_key: rsa.RSAPrivateKey) -> Union[str, None]:
-    file = f"{filename}-encrypted.keys"
+    file_path = f"{filename}-encrypted.keys"
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((HOST, PORT))
@@ -70,21 +71,22 @@ def __receive_keys(filename: str, private_key: rsa.RSAPrivateKey) -> Union[str, 
             ack = s.recv(4)
             if ack == b"ACK":
                 while True:
-                    line = pickle.loads(s.recv(256))
+                    key = s.recv(4096)
+                    line = pickle.loads(key)
                     if not line or line == "END":
                         break
-                    with open(file, "ab") as file:
+                    with open(file_path, "ab") as file:
                         file.write(__decode_line(line, private_key))
                     s.send(b"ACK")
-                return file
+                return file_path
 
             return None
         except:
             return None
 
 
-def __receive_file(filename: str, extension: str) -> Union[str, None]:
-    file = f"{filename}-encrypted.{extension}"
+def __receive_file(filename: str, extension: str, private_key: rsa.RSAPrivateKey) -> Union[str, None]:
+    file_path = f"{filename}-encrypted.{extension}"
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((HOST, PORT))
@@ -95,10 +97,10 @@ def __receive_file(filename: str, extension: str) -> Union[str, None]:
                     line = pickle.loads(s.recv(4096))
                     if not line or line == "END":
                         break
-                    with open(file, "ab") as file:
-                        file.write(line)
+                    with open(file_path, "ab") as file:
+                        file.write(__decode_line(line, private_key))
                     s.send(b"ACK")
-                return file
+                return file_path
             
             return None
         except:
@@ -114,6 +116,6 @@ def receive_data(filename: str, extension: str) -> Tuple[Union[str, None], Union
     __send_filename_and_extension(filename, extension)
 
     ecnrypted_keys_filename = __receive_keys(filename, private_key)
-    encrypted_data_filename = __receive_file(filename, extension)
+    encrypted_data_filename = __receive_file(filename, extension, private_key)
 
     return ecnrypted_keys_filename, encrypted_data_filename
