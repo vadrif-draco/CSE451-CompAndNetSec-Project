@@ -45,7 +45,7 @@ def upload(file_path, progress_update_hook=None):
     ftp.quit()
 
 
-def download(save_file_path, target_file_name):
+def download(save_file_path, target_file_name, progress_update_hook=None):
     # file_name: the name of file you want to download from the FTP server
 
     # connect to the FTP server
@@ -53,7 +53,13 @@ def download(save_file_path, target_file_name):
 
     with open(save_file_path, "wb") as file:
         # use FTP's RETR command to download the file
+        if progress_update_hook:
+            progress_update_hook(50)
         ftp.retrbinary(f"RETR {target_file_name}", file.write)
+        if progress_update_hook:
+            progress_update_hook(30)
 
+    if progress_update_hook:
+        progress_update_hook(20)
     # quit and close the connection
     ftp.quit()

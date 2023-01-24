@@ -20,7 +20,7 @@ def encrypt_file(input_file: util.File, output_file_path, key_aes128, key_des, k
 
         if progress_update_hook:
             block_counter += 1
-            progress_update_hook(round(100 * (block_counter / num_of_blocks)))
+            progress_update_hook(min(100, round(100 * (block_counter / num_of_blocks))))
 
         # Even -> AES
         if even:
@@ -56,7 +56,7 @@ def decrypt_file(encrypted_file: util.File, output_file_path, key_aes128, key_de
 
         if progress_update_hook:
             block_counter += 1
-            progress_update_hook(round(100 * (block_counter // num_of_blocks)))
+            progress_update_hook(min(100, round(100 * (block_counter / num_of_blocks))))
 
         # Even -> AES
         if even:

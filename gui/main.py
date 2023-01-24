@@ -1,8 +1,10 @@
+import os
 from tkinter import StringVar, filedialog
 from typing import Callable
 import threading
 import numpy as np
 import ttkbootstrap as ttkb
+from client_server_comm import client
 from ftp import ftp_client
 from crypto import round_robin_crypto, util, aes_for_master_key
 
@@ -27,10 +29,30 @@ from gui.styles.entries import stylize_entry  # noqa nopep8 isort:skip
 
 # StringVars for filepaths; must be created after root window as well
 UPLOAD_FILEPATH: StringVar = StringVar()
-DOWNLOAD_FILEPATH: StringVar = StringVar()
+DOWNLOAD_FOLDERPATH: StringVar = StringVar()
 
 
-def __create_filepath_browse_frame(master, entry_tvar, width=80) -> ttkb.Frame:
+def __browse_file() -> str:
+    """
+    Opens file browse dialog and sets upload path to file selected
+    """
+    global UPLOAD_FILEPATH
+    filepath = filedialog.askopenfilename()
+    if filepath != "":
+        UPLOAD_FILEPATH.set(filepath)
+
+
+def __browse_folder() -> str:
+    """
+    Opens folder browse dialog and sets download path to folder selected
+    """
+    global DOWNLOAD_FOLDERPATH
+    folder = filedialog.askdirectory()
+    if folder != "":
+        DOWNLOAD_FOLDERPATH.set(folder)
+
+
+def __create_filepath_browse_frame(master, entry_tvar, width=80, browse_command=__browse_file) -> ttkb.Frame:
     """
     Creates the visuals for the filepath browse dialog area
     """
@@ -62,7 +84,7 @@ def __create_filepath_browse_frame(master, entry_tvar, width=80) -> ttkb.Frame:
         text="Browse",
         cursor="hand1",
         style=stylize_btn("light", font_size=16),
-        command=__browse,
+        command=browse_command,
     )
     browse_btn.pack(side=ttkb.RIGHT, padx=5, pady=[8, 0])
 
@@ -96,16 +118,6 @@ def __create_upload_buttons_frame(master) -> ttkb.Frame:
     return frame
 
 
-def __browse() -> str:
-    """
-    Opens file browse dialog and returns filepath selected
-    """
-    global UPLOAD_FILEPATH
-    filepath = filedialog.askopenfilename()
-    if filepath != "":
-        UPLOAD_FILEPATH.set(filepath)
-
-
 def __encrypt_data(original_file: util.File, meter: ttkb.Meter, next_fn: Callable):
 
     # Encrypted files to be uploaded
@@ -130,12 +142,18 @@ def __encrypt_data(original_file: util.File, meter: ttkb.Meter, next_fn: Callabl
             )
         )
 
-        concatenated_keys = np.array(np.concatenate((key_des, key_aes128, key_custom))).tobytes()
+        concatenated_keys_bits = np.concatenate((key_des, key_aes128, key_custom))
+        concatenated_keys_bytes = np.packbits(concatenated_keys_bits)
+        concatenated_keys_raw = np.array(concatenated_keys_bytes, dtype=np.uint8).tobytes()
+        encrypted_keys_raw = aes_for_master_key.encrypt(concatenated_keys_raw, MASTER_KEY)
+        encrypted_keys_bytes = np.frombuffer(encrypted_keys_raw, dtype=np.uint8)
+        encrypted_keys_bits = np.array(np.unpackbits(encrypted_keys_bytes), dtype=np.uint8)
+
         meter.configure(subtext="Encrypting keys")
         encrypted_files.append(
             util.File.create_file(
                 original_file.file_path_no_ext + "-encrypted.keys",
-                np.frombuffer(aes_for_master_key.encrypt(concatenated_keys, MASTER_KEY), dtype=np.uint8)
+                encrypted_keys_bits
             )
         )
 
@@ -185,7 +203,7 @@ def __secure_upload():
         for child in UPLOAD_PAGE.winfo_children():
             child.destroy()
         original_file = util.File(UPLOAD_FILEPATH.get())
-        meter = __create_meter("Encrypting data", "success")
+        meter = __create_meter("Encrypting data", "success", UPLOAD_PAGE)
         __encrypt_data(original_file, meter, next_fn=__upload)
 
 
@@ -195,13 +213,72 @@ def __unsecure_upload():
         for child in UPLOAD_PAGE.winfo_children():
             child.destroy()
         file = util.File(UPLOAD_FILEPATH.get())
-        meter = __create_meter("Uploading data", "warning")
+        meter = __create_meter("Uploading data", "warning", UPLOAD_PAGE)
         __upload([file], meter)
 
 
-def __create_meter(label, bootstyle):
+def __download(filepath):
+    if not filepath: return
+    name, ext = os.path.splitext(filepath)
+    encrypted_keys_name = name + "-encrypted.keys"
+    encrypted_data_name = name + "-encrypted" + ext
+    decrypted_data_name = name + "-decrypted" + ext
+    encrypted_keys_path = DOWNLOAD_FOLDERPATH.get() + "\\" + encrypted_keys_name
+    encrypted_data_path = DOWNLOAD_FOLDERPATH.get() + "\\" + encrypted_data_name
+    decrypted_data_path = DOWNLOAD_FOLDERPATH.get() + "\\" + decrypted_data_name
+
+    def download():
+        for child in DOWNLOAD_PAGE.winfo_children(): child.destroy()
+        meter = __create_meter("Downloading data", "success", DOWNLOAD_PAGE)
+        meter.configure(amountused=0)
+        ftp_client.download(
+            encrypted_data_path,
+            encrypted_data_name,
+            progress_update_hook=lambda e: meter.step(e//2)
+        )
+        meter.configure(subtext="Downloading keys", amountused=50)
+        ftp_client.download(
+            encrypted_keys_path,
+            encrypted_keys_name,
+            progress_update_hook=lambda e: meter.step(e//2)
+        )
+
+        meter.configure(subtext="Decrypting keys", amountused=0)
+        encrypted_keys_bytes = np.fromfile(encrypted_keys_path, dtype=np.uint8)
+        encrypted_keys_raw = np.array(encrypted_keys_bytes, dtype=np.uint8).tobytes()
+        concatenated_keys_raw = aes_for_master_key.decrypt(encrypted_keys_raw, MASTER_KEY)
+        concatenated_keys_bytes = np.frombuffer(concatenated_keys_raw, dtype=np.uint8)
+        concatenated_keys_bits = np.unpackbits(concatenated_keys_bytes)
+
+        meter.configure(subtext="Decrypting data", amountused=0)
+        round_robin_crypto.decrypt_file(
+            encrypted_file=util.File(encrypted_data_path),
+            output_file_path=decrypted_data_path,
+            # DES(64) > AES(128) > CUSTOMALGO(128)
+            key_des=concatenated_keys_bits[:64],
+            key_aes128=concatenated_keys_bits[64:192],
+            key_custom=concatenated_keys_bits[192:],
+            progress_update_hook=lambda e: meter.configure(amountused=e)
+        )
+
+    download_thread = threading.Thread(target=download)
+    download_thread.start()
+
+    def download_thread_checker():
+        if not download_thread.is_alive():
+            for child in DOWNLOAD_PAGE.winfo_children():
+                child.destroy()
+            create_download_page()
+        else:
+            ROOT.after(1000, download_thread_checker)
+
+    print("\nDownloading...\n")
+    download_thread_checker()
+
+
+def __create_meter(label, bootstyle, master):
     meter = ttkb.Meter(
-        master=UPLOAD_PAGE,
+        master=master,
         amountused=0,
         stripethickness=10,
         subtext=label,
@@ -277,8 +354,9 @@ def create_download_page():
 
     __create_filepath_browse_frame(
         master=browse_and_download_frame,
-        entry_tvar=DOWNLOAD_FILEPATH,
-        width=60
+        entry_tvar=DOWNLOAD_FOLDERPATH,
+        width=60,
+        browse_command=__browse_folder
     ).pack(side=ttkb.TOP, pady=20)
 
     download_btn = ttkb.Button(
@@ -321,7 +399,9 @@ def create_download_page():
         tree_view.delete(*tree_view.get_children())
         files = ftp_client.get_file_list()
         for i, file in enumerate(files):
-            tree_view.insert(parent='', index='end', iid=i, text='', values=file)
+            if "-encrypted" in file and not file.endswith(".keys"):
+                file = file.replace("-encrypted", "")
+                tree_view.insert(parent='', index='end', iid=i, text='', values=file)
         refresh_list_btn.configure(style=stylize_btn("info.Outline", font_size=14))
         refresh_list_btn['state'] = ttkb.NORMAL
 
@@ -336,11 +416,11 @@ def create_download_page():
     refresh_list_btn.pack(side=ttkb.BOTTOM, pady=20)
 
     def get_selected_item():
-        selected_item_index = tree_view.selection()
-        if len(selected_item_index) != 0:
-            return tree_view.item(selected_item_index)['values'][0]
+        selected_items = tree_view.selection()
+        if len(selected_items) != 0:
+            return tree_view.item(selected_items)['values'][0]
 
-    download_btn.configure(command=lambda: print(get_selected_item()))
+    download_btn.configure(command=lambda: __download(get_selected_item()))
 
     file_list_frame.pack(side=ttkb.RIGHT, expand=True, fill="none", padx=20)
     threading.Thread(target=populate_file_list).start()

@@ -1,11 +1,11 @@
 {
   "pylint.args": [
-    "--disable=C0111,C0413,W0603,W0602,E0401"
+    "--disable=C0111,C0321,C0413,C0301,W0603,W0602,W0703,E0401"
 ],
   "files.exclude": {
     "**/__pycache__": true,
     "**/__pycache__.*": true,
     "**/__init__": true,
     "**/__init__.*": true
-  }
+}
 }
