@@ -7,6 +7,7 @@ def feistel_round(left_half, right_half, key, function_f):
 
 
 def bin_vec_to_dec_val(binary_vector):
+    # TODO: Rename to bit_vec_to_dec_val
 
     # Create a vector of powers of 2 (flipped) of the same size of the binary vector
     powers_vector = np.flip(2**(np.arange(len(binary_vector))), axis=0)
@@ -16,6 +17,7 @@ def bin_vec_to_dec_val(binary_vector):
 
 
 def dec_val_to_bin_vec(decimal_value, min_width=4):
+    # TODO: Rename to dec_val_to_bit_vec
 
     # Calculate actual width
     actual_width = 1
@@ -29,3 +31,38 @@ def dec_val_to_bin_vec(decimal_value, min_width=4):
 
     # Convert and return this string representation as an array
     return np.array([int(bit_char) for bit_char in binary_string])
+
+# TODO: bit_vec_to_byte_vec and vice versa
+
+
+class File:
+
+    BLOCK_SIZE = 16  # bytes
+
+    @staticmethod
+    def create_file(file_path, file_bits: np.ndarray, padded=False):
+        file_bytes: np.ndarray = np.packbits(file_bits)
+        if padded:
+            num_of_padding_bytes = file_bytes[-1]  # PKCS5
+            file_bytes = np.resize(file_bytes, len(file_bytes) - num_of_padding_bytes)
+        file_bytes.tofile(file_path)
+        return File(file_path)
+
+    def __init__(self, file_path):
+        self.file_in_bytes: np.ndarray = np.fromfile(file_path, dtype=np.uint8)
+        self.has_next = True
+
+    def get_next_block(self, decrypting=False):
+        if len(self.file_in_bytes) >= File.BLOCK_SIZE:
+            bits = np.unpackbits(self.file_in_bytes[:File.BLOCK_SIZE])
+            self.file_in_bytes = self.file_in_bytes[File.BLOCK_SIZE:]
+            if len(self.file_in_bytes) == 0 and decrypting:
+                self.has_next = False
+            return bits
+
+        self.has_next = False
+        remaining_bytes = np.uint8(File.BLOCK_SIZE - len(self.file_in_bytes))
+        block = self.file_in_bytes.copy()
+        for _ in range(remaining_bytes):
+            block = np.append(block, remaining_bytes)
+        return np.unpackbits(block)
