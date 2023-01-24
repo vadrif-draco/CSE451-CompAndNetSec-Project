@@ -23,6 +23,10 @@ def send_file(filename, public_key: rsa.RSAPublicKey, conn):
                 )
             )
             conn.send(pickle.dumps(ciphertext))
+            while True:
+                message = conn.recv(2048)
+                if message == b"ACK":
+                    break
 
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
