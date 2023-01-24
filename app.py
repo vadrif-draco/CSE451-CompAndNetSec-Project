@@ -5,14 +5,13 @@ from crypto import des, aes128, custom, util, round_robin_crypto
 
 
 def round_robin_crypto_jpg_test():
-    encrypted_file_bits = round_robin_crypto.encrypt_file(
-        util.File("test_files\\tux-linux-logo-original.jpg"),
+    encrypted_file = round_robin_crypto.encrypt_file(
+        util.File("test_files\\tux-linux-logo.jpg"),
+        output_file_path="test_files\\tux-linux-logo-encrypted.jpg",
         key_des=np.array([0] * 64),
         key_aes128=np.zeros((128,), dtype=np.uint8),
         key_custom=np.zeros((128,), dtype=np.uint8)
     )
-
-    encrypted_file = util.File.create_file("test_files\\tux-linux-logo-encrypted.jpg", encrypted_file_bits)
 
     round_robin_crypto.decrypt_file(
         encrypted_file,
@@ -24,14 +23,13 @@ def round_robin_crypto_jpg_test():
 
 
 def round_robin_crypto_txt_test():
-    encrypted_file_bits = round_robin_crypto.encrypt_file(
-        util.File("test_files\\test-document-original.txt"),
+    encrypted_file = round_robin_crypto.encrypt_file(
+        util.File("test_files\\test-document.txt"),
+        output_file_path="test_files\\test-document-encrypted.txt",
         key_des=np.array([0] * 64),
         key_aes128=np.zeros((128,), dtype=np.uint8),
         key_custom=np.zeros((128,), dtype=np.uint8)
     )
-
-    encrypted_file = util.File.create_file("test_files\\test-document-encrypted.txt", encrypted_file_bits)
 
     round_robin_crypto.decrypt_file(
         encrypted_file,
@@ -91,13 +89,13 @@ if __name__ == "__main__":
     # -------------------- GUI --------------------
     main.start()
 
-    # # -------------------- FTP --------------------
-    # ftp_client.upload("C:\\Users\\Administrator\\Desktop\\7amada_out.txt", "7amada.txt")
-    # ftp_client.download("C:\\Users\\Administrator\\Desktop\\7amada_in.txt", "7amada.txt")
+    # -------------------- FTP --------------------
+    # print(ftp_client.get_file_list())
+    # ftp_client.upload("test_files\\test-document-original.txt")
 
-    # # ------------- RoundRobin Crypto -------------
-    # round_robin_crypto_jpg_test()
+    # ------------- RoundRobin Crypto -------------
     # round_robin_crypto_txt_test()
+    # round_robin_crypto_jpg_test()
 
     # # To print in hex
     # np.set_printoptions(formatter={'int': hex})

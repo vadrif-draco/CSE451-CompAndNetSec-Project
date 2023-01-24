@@ -1,5 +1,6 @@
 import threading
 from tkinter import StringVar, filedialog
+from typing import Callable
 import ttkbootstrap as ttkb
 from ftp import ftp_client
 from crypto import round_robin_crypto, util
@@ -96,14 +97,15 @@ def browse() -> str:
         FILEPATH.set(filepath)
 
 
-def secure_upload():
+def __encrypt(original_file: util.File, meter: ttkb.Meter, meter_window: ttkb.Window, next_fn: Callable):
+    # Using a list because I can't have an assignment operator inside python lambda functions
+    encrypted_file: list[util.File] = []
+
     import numpy as np
-    ROOT.withdraw()
-    encrypted_data = []
-    meter_window, meter = create_meter_window("Encrypting", "success")
     encryption_thread = threading.Thread(
-        target=lambda: encrypted_data.append(round_robin_crypto.encrypt_file(
-            input_file=util.File(FILEPATH.get()),
+        target=lambda: encrypted_file.append(round_robin_crypto.encrypt_file(
+            input_file=original_file,
+            output_file_path=original_file.file_path_no_ext + "-encrypted" + original_file.file_ext,
             key_des=np.array([0] * 64),
             key_aes128=np.zeros((128,), dtype=np.uint8),
             key_custom=np.zeros((128,), dtype=np.uint8),
@@ -114,34 +116,52 @@ def secure_upload():
 
     def encryption_thread_checker():
         if not encryption_thread.is_alive():
-            meter.configure(subtext="Uploading", amountused=0)
-            upload_thread = threading.Thread(
-                target=ftp_client.upload_binary,
-                args=(
-                    FILEPATH.get(),
-                    encrypted_data[0],
-                    lambda e: meter.configure(amountused=e)
-                )
-            )
-            upload_thread.start()
+            next_fn(encrypted_file[0], meter, meter_window)
 
-            def upload_thread_checker():
-                if not upload_thread.is_alive():
-                    meter_window.destroy()
-                    ROOT.deiconify()
-                else: ROOT.after(1000, upload_thread_checker)
+        else:
+            print(".", end="")
+            ROOT.after(1000, encryption_thread_checker)
 
-        else: ROOT.after(1000, encryption_thread_checker)
-
+    print("Encrypting.")
     encryption_thread_checker()
+
+
+def __upload(file: util.File, meter: ttkb.Meter, meter_window: ttkb.Window):
+    meter.configure(subtext="Uploading", amountused=0)
+    upload_thread = threading.Thread(
+        target=ftp_client.upload,
+        args=(
+            file.file_path,
+            lambda e: meter.configure(amountused=e)
+        )
+    )
+    upload_thread.start()
+
+    def upload_thread_checker():
+        if not upload_thread.is_alive():
+            meter_window.destroy()
+            ROOT.deiconify()
+            print("\n")
+        else:
+            print(".", end="")
+            ROOT.after(1000, upload_thread_checker)
+
+    print("Uploading.")
+    upload_thread_checker()
+
+
+def secure_upload():
+    ROOT.withdraw()
+    original_file = util.File(FILEPATH.get())
+    meter_window, meter = create_meter_window("Encrypting", "success")
+    __encrypt(original_file, meter, meter_window, next_fn=__upload)
 
 
 def unsecure_upload():
     ROOT.withdraw()
-    upload_meter_page, meter = create_meter_window("Uploading", "warning")
-    ftp_client.upload(FILEPATH.get(), meter.step)
-    upload_meter_page.destroy()
-    ROOT.deiconify()
+    file = util.File(FILEPATH.get())
+    meter_window, meter = create_meter_window("Uploading", "warning")
+    __upload(file, meter, meter_window)
 
 
 def create_meter_window(label, bootstyle):

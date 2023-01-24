@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 
@@ -48,6 +49,8 @@ class File:
 
     def __init__(self, file_path):
         self.file_in_bytes: np.ndarray = np.fromfile(file_path, dtype=np.uint8)
+        self.file_path_no_ext, self.file_ext = os.path.splitext(file_path)
+        self.file_path = file_path
         self.has_next = True
 
     def get_next_block(self, decrypting=False):
