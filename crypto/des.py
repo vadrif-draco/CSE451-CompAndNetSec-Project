@@ -65,15 +65,15 @@ def __substitution(message):
     selectors = np.hsplit(message_split, [4, ])
 
     # Convert selectors from binary vectors form to decimal values
-    row_selectors = np.apply_along_axis(util.bin_vec_to_dec_val, 1, np.flip(selectors[1], axis=1))
-    column_selectors = np.apply_along_axis(util.bin_vec_to_dec_val, 1, selectors[0])
+    row_selectors = np.apply_along_axis(util.bit_vec_to_dec_val, 1, np.flip(selectors[1], axis=1))
+    column_selectors = np.apply_along_axis(util.bit_vec_to_dec_val, 1, selectors[0])
 
     # Get the mapped values from the 8 S-boxes and convert to their binary vector representations
     # TODO: Vectorized/parallelized implementation
     message_subtitutions = np.zeros((8, 4), dtype=np.uint8)
     for i in range(8):
         message_subtitutions[i] = \
-            util.dec_val_to_bin_vec(tables.S_BOXES[i][row_selectors[i]][column_selectors[i]])
+            util.dec_val_to_bit_vec(tables.S_BOXES[i][row_selectors[i]][column_selectors[i]])
 
     # Stitch back the message into the s-boxed message
     message = np.concatenate(message_subtitutions)

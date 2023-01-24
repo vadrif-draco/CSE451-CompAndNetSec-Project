@@ -89,29 +89,29 @@ def custom_algo_avalanche_effect_test():
 
 if __name__ == "__main__":
     # -------------------- GUI --------------------
-    # main.start()
+    main.start()
 
-    # -------------------- FTP --------------------
+    # # -------------------- FTP --------------------
     # ftp_client.upload("C:\\Users\\Administrator\\Desktop\\7amada_out.txt", "7amada.txt")
     # ftp_client.download("C:\\Users\\Administrator\\Desktop\\7amada_in.txt", "7amada.txt")
 
-    # ------------- RoundRobin Crypto -------------
-    round_robin_crypto_jpg_test()
-    round_robin_crypto_txt_test()
+    # # ------------- RoundRobin Crypto -------------
+    # round_robin_crypto_jpg_test()
+    # round_robin_crypto_txt_test()
 
-    # To print in hex
-    np.set_printoptions(formatter={'int': hex})
+    # # To print in hex
+    # np.set_printoptions(formatter={'int': hex})
 
-    print("\n-------------------- DES --------------------\n")
-    des_test_zeros()
+    # print("\n-------------------- DES --------------------\n")
+    # des_test_zeros()
 
-    print("\n-------------------- AES --------------------\n")
-    aes128_test_zeros()
+    # print("\n-------------------- AES --------------------\n")
+    # aes128_test_zeros()
 
-    print("\n---------------- CUSTOM ALGO ----------------\n")
-    custom_algo_internal_test()
-    custom_algo_test_zeros()
-    custom_algo_avalanche_effect_test()
+    # print("\n---------------- CUSTOM ALGO ----------------\n")
+    # custom_algo_internal_test()
+    # custom_algo_test_zeros()
+    # custom_algo_avalanche_effect_test()
 
-    # To reset printing to its default
-    np.set_printoptions()
+    # # To reset printing to its default
+    # np.set_printoptions()

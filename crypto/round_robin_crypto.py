@@ -1,15 +1,22 @@
+import math
 import numpy as np
 from . import util
 from . import aes128, des, custom
 
 
-def encrypt_file(input_file: util.File, key_aes128, key_des, key_custom) -> np.ndarray:
+def encrypt_file(input_file: util.File, key_aes128, key_des, key_custom, progress_update_hook=None) -> np.ndarray:
     even = True
     ciphertext_bits = np.array([], dtype=np.uint8)
+    block_counter = 0
+    num_of_blocks = math.ceil(len(input_file.file_in_bytes) / input_file.BLOCK_SIZE)
 
     while input_file.has_next:
 
         block_128 = input_file.get_next_block()
+
+        if progress_update_hook:
+            block_counter += 1
+            progress_update_hook(math.ceil(100 * (block_counter / num_of_blocks)))
 
         # Even -> AES
         if even:

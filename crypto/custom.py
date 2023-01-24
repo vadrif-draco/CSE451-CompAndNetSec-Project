@@ -44,7 +44,7 @@ def __generate_keys(seed):
     keys_int64 = np.random.RandomState(seed).randint(low=0, high=2**64, dtype=np.uint64, size=(7 * (6 + 6), 1))
 
     # Convert from int64 value to 64-bit vectors
-    keys_bits = np.apply_along_axis(lambda decimal: util.dec_val_to_bin_vec(decimal[0], min_width=64), 1, keys_int64)
+    keys_bits = np.apply_along_axis(lambda decimal: util.dec_val_to_bit_vec(decimal[0], min_width=64), 1, keys_int64)
 
     # Reshape for 7 rounds and 6+6 inner rounds of 64-bit keys
     return np.reshape(keys_bits, (7, 12, 64))

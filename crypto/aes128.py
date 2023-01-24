@@ -55,7 +55,7 @@ def __1x128_bits_to_4x4_bytes(data_1x128):
     # 128 bits -> 16 8-bit vectors
     data_16x8 = np.hsplit(data_1x128, 16)
     # 16 8-bit vectors -> 16 bytes
-    data_16x1 = np.apply_along_axis(util.bin_vec_to_dec_val, 1, data_16x8)
+    data_16x1 = np.apply_along_axis(util.bit_vec_to_dec_val, 1, data_16x8)
     # 16 bytes -> 4x4 bytes
     data_4x4 = np.reshape(data_16x1, (4, 4))
     return data_4x4
@@ -65,7 +65,7 @@ def __4x4_bytes_to_1x128_bits(data_4x4):
     # 4x4 bytes -> 16 bytes
     data_16x1 = np.reshape(data_4x4, (16, 1))
     # 16 bytes -> 16 8-bit vectors
-    data_16x8 = np.apply_along_axis(lambda dec: util.dec_val_to_bin_vec(dec[0], 8), 1, data_16x1)
+    data_16x8 = np.apply_along_axis(lambda dec: util.dec_val_to_bit_vec(dec[0], 8), 1, data_16x1)
     # 16 8-bit vectors -> 128 bits
     data_1x128 = np.concatenate(data_16x8)
     return data_1x128
