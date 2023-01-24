@@ -2,10 +2,13 @@ import numpy as np
 from . import aes_tables as tables
 from . import util
 
+KEY_CACHE = None
 
-def encrypt(message, initial_key):
 
-    keys = __expand_key(initial_key)
+def encrypt(message: np.ndarray, initial_key: np.ndarray, cached=False):
+
+    initial_key.flags.writeable = False
+    keys = KEY_CACHE if cached else __expand_key(initial_key)
 
     # Convert plain message form (1x128) to state form (4x4)
     state = __1x128_bits_to_4x4_bytes(message)
@@ -27,9 +30,10 @@ def encrypt(message, initial_key):
     return cipher
 
 
-def decrypt(cipher, initial_key):
+def decrypt(cipher: np.ndarray, initial_key: np.ndarray, cached=False):
 
-    keys = __expand_key(initial_key)
+    initial_key.flags.writeable = False
+    keys = KEY_CACHE if cached else __expand_key(initial_key)
 
     # Convert cipher message form (1x128) to state form (4x4)
     state = __1x128_bits_to_4x4_bytes(cipher)
@@ -51,7 +55,7 @@ def decrypt(cipher, initial_key):
     return message
 
 
-def __1x128_bits_to_4x4_bytes(data_1x128):
+def __1x128_bits_to_4x4_bytes(data_1x128: np.ndarray):
     # 128 bits -> 16 8-bit vectors
     data_16x8 = np.hsplit(data_1x128, 16)
     # 16 8-bit vectors -> 16 bytes
@@ -61,7 +65,7 @@ def __1x128_bits_to_4x4_bytes(data_1x128):
     return data_4x4
 
 
-def __4x4_bytes_to_1x128_bits(data_4x4):
+def __4x4_bytes_to_1x128_bits(data_4x4: np.ndarray):
     # 4x4 bytes -> 16 bytes
     data_16x1 = np.reshape(data_4x4, (16, 1))
     # 16 bytes -> 16 8-bit vectors
@@ -71,14 +75,15 @@ def __4x4_bytes_to_1x128_bits(data_4x4):
     return data_1x128
 
 
-def __g(word, round_num):
+def __g(word: np.ndarray, round_num):
     word = np.roll(word, -1)  # Circular shift left
     word = np.take(tables.S_BOX, word)  # S-Box the bytes
     word[0] = np.bitwise_xor(tables.ROUND_CONSTANTS[round_num], word[0])  # XOR first byte with RC
     return word
 
 
-def __expand_key(initial_key_1x128):
+def __expand_key(initial_key_1x128: np.ndarray):
+    global KEY_CACHE
     round_keys = np.zeros((11, 4, 4), dtype=np.uint32)
     round_keys[0] = __1x128_bits_to_4x4_bytes(initial_key_1x128)
     for i in range(1, 11):
@@ -86,25 +91,26 @@ def __expand_key(initial_key_1x128):
         round_keys[i][1] = np.bitwise_xor(round_keys[i - 1][1], round_keys[i][0])
         round_keys[i][2] = np.bitwise_xor(round_keys[i - 1][2], round_keys[i][1])
         round_keys[i][3] = np.bitwise_xor(round_keys[i - 1][3], round_keys[i][2])
-    return round_keys
+    KEY_CACHE = round_keys
+    return KEY_CACHE
 
 
-def __add_round_key(state, round_key):
+def __add_round_key(state: np.ndarray, round_key: np.ndarray):
     return np.bitwise_xor(state, round_key)
 
 
-def __substitute_bytes(state, inverse: bool = False):
+def __substitute_bytes(state: np.ndarray, inverse: bool = False):
     return np.take(tables.INVERSE_S_BOX if inverse else tables.S_BOX, state)
 
 
-def __shift_rows(state, inverse: bool = False):
+def __shift_rows(state: np.ndarray, inverse: bool = False):
     state = np.transpose(state)
     for i in range(1, 4):
         state[i] = np.roll(state[i], i if inverse else -i)
     return np.transpose(state)
 
 
-def __mix_cols_lookup(word):
+def __mix_cols_lookup(word: np.ndarray):
 
     b_0, b_1, b_2, b_3 = word  # the bytes
     return np.array(
@@ -118,7 +124,7 @@ def __mix_cols_lookup(word):
     ).reshape((4,))
 
 
-def __mix_cols_inverse_lookup(word):
+def __mix_cols_inverse_lookup(word: np.ndarray):
 
     b_0, b_1, b_2, b_3 = word  # the bytes
     return np.array(
@@ -131,7 +137,7 @@ def __mix_cols_inverse_lookup(word):
     ).reshape((4,))
 
 
-def __mix_cols(state, inverse: bool = False):
+def __mix_cols(state: np.ndarray, inverse: bool = False):
     new_state = np.zeros_like(state)
     for word_index, word in enumerate(state):
         new_state[word_index] = __mix_cols_inverse_lookup(word) if inverse else __mix_cols_lookup(word)

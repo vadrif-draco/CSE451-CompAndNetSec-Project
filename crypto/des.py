@@ -2,8 +2,10 @@ import numpy as np
 from . import util
 from . import des_tables as tables
 
+KEY_CACHE = None
 
-def encrypt(message, key):
+
+def encrypt(message: np.ndarray, key: np.ndarray, cached=False):
 
     # Initial permutation
     message = np.take(message, tables.INITIAL_PERMUTATION)
@@ -12,7 +14,8 @@ def encrypt(message, key):
     message_left, message_right = message[:32], message[32:]
 
     # Get subkeys to use in feistel rounds
-    subkeys = __generate_subkeys(key)
+    key.flags.writeable = False
+    subkeys = KEY_CACHE if cached else __generate_subkeys(key)
 
     # 16 feistel rounds of DES black magic
     for i in range(16):
@@ -28,7 +31,7 @@ def encrypt(message, key):
     return message
 
 
-def decrypt(cipher, key):
+def decrypt(cipher: np.ndarray, key: np.ndarray, cached=False):
 
     # Initial permutation
     cipher = np.take(cipher, tables.INITIAL_PERMUTATION)
@@ -37,7 +40,8 @@ def decrypt(cipher, key):
     cipher_left, cipher_right = cipher[:32], cipher[32:]
 
     # Get subkeys to use in feistel rounds
-    subkeys = __generate_subkeys(key)
+    key.flags.writeable = False
+    subkeys = KEY_CACHE if cached else __generate_subkeys(key)
 
     # 16 feistel rounds of DES black magic
     for i in range(15, -1, -1):
@@ -53,7 +57,7 @@ def decrypt(cipher, key):
     return cipher
 
 
-def __substitution(message):
+def __substitution(message: np.ndarray):
 
     # Split message into 8 pieces to get an 8x6 matrix
     message_split = np.hsplit(message, 8)
@@ -81,7 +85,7 @@ def __substitution(message):
     return message
 
 
-def __feistel_function_f(message, round_key):
+def __feistel_function_f(message: np.ndarray, round_key: np.ndarray):
 
     # Expanded permutation (for diffusion)
     message = np.take(message, tables.EXPANSION_PERMUTATION)
@@ -100,7 +104,9 @@ def __feistel_function_f(message, round_key):
     return message
 
 
-def __generate_subkeys(key):
+def __generate_subkeys(key: np.ndarray):
+    
+    global KEY_CACHE
 
     # Use PC1 for initial conversion of 64-bit key to two 28-bit keys
     key = np.take(key, tables.PC1)
@@ -117,4 +123,5 @@ def __generate_subkeys(key):
         left, right = np.roll(left, -key_rot_sched[i]), np.roll(right, -key_rot_sched[i])
         subkeys[i] = np.take(np.concatenate((left, right)), tables.PC2)
 
-    return subkeys
+    KEY_CACHE = subkeys
+    return KEY_CACHE

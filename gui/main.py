@@ -1,6 +1,6 @@
+import threading
 from tkinter import StringVar, filedialog
 import ttkbootstrap as ttkb
-import threading
 from ftp import ftp_client
 from crypto import round_robin_crypto, util
 

@@ -2,14 +2,16 @@ import numpy as np
 from . import custom_tables as tables
 from . import util
 
-
 DEBUG = 0
 debug_data_enc = []
 debug_data_dec = []
 
+KEY_CACHE = None
 
-def encrypt(message, key):
-    keys = __generate_keys(seed=key)
+
+def encrypt(message: np.ndarray, key: np.ndarray, cached=False):
+    key.flags.writeable = False
+    keys = KEY_CACHE if cached else __generate_keys(seed=key)
 
     for round_number in range(7):
         for inner_round_number in range(6):
@@ -23,8 +25,9 @@ def encrypt(message, key):
     return message
 
 
-def decrypt(cipher, key):
-    keys = __generate_keys(seed=key)
+def decrypt(cipher: np.ndarray, key: np.ndarray, cached=False):
+    key.flags.writeable = False
+    keys = KEY_CACHE if cached else __generate_keys(seed=key)
 
     for round_number in range(7)[::-1]:
         for inner_round_number in range(6)[::-1]:
@@ -38,19 +41,24 @@ def decrypt(cipher, key):
     return cipher
 
 
-def __generate_keys(seed):
+# FIXME: Defeat the avalanche effect
+def __generate_keys(seed: np.ndarray):
+    global KEY_CACHE
+
     # Generate keys for all rounds and their inner rounds
     # The 6 + 6 refers to the 6 keys used by each inner round's initial XOR, plus the 6 keys used by the terminal XOR
     keys_int64 = np.random.RandomState(seed).randint(low=0, high=2**64, dtype=np.uint64, size=(7 * (6 + 6), 1))
 
     # Convert from int64 value to 64-bit vectors
-    keys_bits = np.apply_along_axis(lambda decimal: util.dec_val_to_bit_vec(decimal[0], min_width=64), 1, keys_int64)
+    keys_bits = np.apply_along_axis(lambda decimal: util.dec_val_to_bit_vec(
+        decimal[0], min_width=64), 1, keys_int64)
 
     # Reshape for 7 rounds and 6+6 inner rounds of 64-bit keys
-    return np.reshape(keys_bits, (7, 12, 64))
+    KEY_CACHE = np.reshape(keys_bits, (7, 12, 64))
+    return KEY_CACHE
 
 
-def __swap_bits(i1_original, i2_original, inner_round_number, shift_size):
+def __swap_bits(i1_original: np.ndarray, i2_original: np.ndarray, inner_round_number, shift_size):
     i1_masked = np.bitwise_and(i1_original, tables.I1_MASKS[inner_round_number])
     i2_masked = np.bitwise_and(i2_original, tables.I2_MASKS[inner_round_number])
 
@@ -62,14 +70,14 @@ def __swap_bits(i1_original, i2_original, inner_round_number, shift_size):
     return np.bitwise_or(np.roll(i1_masked, -shift_size), np.roll(i2_masked, shift_size))
 
 
-def __reverse_swap_bits(swap, shift_size):
-    i1_unmasked = np.roll(swap, shift_size)
-    i2_unrolled = np.roll(swap, -shift_size)
+def __reverse_swap_bits(swapped_bits: np.ndarray, shift_size):
+    i1_unmasked = np.roll(swapped_bits, shift_size)
+    i2_unrolled = np.roll(swapped_bits, -shift_size)
 
     return i1_unmasked, i2_unrolled
 
 
-def __inner_round(i1_original, inner_round_number, keyi, key6):
+def __inner_round(i1_original: np.ndarray, inner_round_number, keyi: np.ndarray, key6: np.ndarray):
     shift_size = np.power(2, inner_round_number)
 
     i2_original = np.bitwise_xor(i1_original, key6)
@@ -90,7 +98,7 @@ def __inner_round(i1_original, inner_round_number, keyi, key6):
     return ciphertext
 
 
-def __inverse_inner_round(ciphertext, inner_round_number, keyi, key6):
+def __inverse_inner_round(ciphertext: np.ndarray, inner_round_number, keyi: np.ndarray, key6: np.ndarray):
     shift_size = np.power(2, inner_round_number)
 
     swap = np.bitwise_xor(ciphertext, keyi)
