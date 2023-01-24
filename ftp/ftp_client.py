@@ -37,10 +37,10 @@ def upload(file_path, progress_update_hook=None):
             progress_update_hook(50)
         ftp.storbinary(f"STOR {os.path.basename(file_path)}", file)
         if progress_update_hook:
-            progress_update_hook(80)
+            progress_update_hook(30)
 
     if progress_update_hook:
-        progress_update_hook(100)
+        progress_update_hook(20)
     # quit and close the connection
     ftp.quit()
 
