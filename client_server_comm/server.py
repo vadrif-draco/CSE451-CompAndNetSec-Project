@@ -50,14 +50,10 @@ def __send_file(filename: str, public_key: rsa.RSAPublicKey, conn: socket) -> No
         print(e)
 
 
-def send_keys(filename: str, public_key: rsa.RSAPublicKey, conn: socket) -> None:
-    file = f"/home/test/ftp/{filename}-encrypted.keys"
+def send_master_key(filename: str, public_key: rsa.RSAPublicKey, conn: socket) -> None:
+    file = f"/home/test/ftp/{filename}-master.keys"
     __send_file(file, public_key, conn)
 
-
-def send_data(filename: str, extension: str, public_key: rsa.RSAPublicKey, conn: socket) -> None:
-    file = f"/home/test/ftp/{filename}-encrypted{extension}"
-    __send_file(file, public_key, conn)
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -76,10 +72,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 elif message == b"FNEX":
                     __send_ack(conn)
                     filename, extension = get_filename_and_extension(conn)
-                elif message == b"KEYS":
+                elif message == b"MKEY":
                     __send_ack(conn)
-                    send_keys(filename, public_key, conn)
-                elif message == b"DATA":
-                    __send_ack(conn)
-                    send_data(filename, extension, public_key, conn)
+                    send_master_key(filename, public_key, conn)
                 

@@ -1,6 +1,5 @@
 import socket
 import pickle
-from typing import Tuple, Union
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat

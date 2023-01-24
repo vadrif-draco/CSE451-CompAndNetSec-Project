@@ -62,12 +62,12 @@ def __send_filename_and_extension(filename: str, extension: str) -> None:
             return
 
 
-def __receive_keys(filename: str, private_key: rsa.RSAPrivateKey) -> Union[str, None]:
-    file_path = f"{filename}-encrypted.keys"
+def __receive_master_key(filename: str, private_key: rsa.RSAPrivateKey) -> Union[str, None]:
+    file_path = f"{filename}-master.keys"
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((HOST, PORT))
-            s.send(b"KEYS")
+            s.send(b"MKEY")
             ack = s.recv(4)
             if ack == b"ACK":
                 while True:
@@ -85,29 +85,7 @@ def __receive_keys(filename: str, private_key: rsa.RSAPrivateKey) -> Union[str, 
             return None
 
 
-def __receive_file(filename: str, extension: str, private_key: rsa.RSAPrivateKey) -> Union[str, None]:
-    file_path = f"{filename}-encrypted{extension}"
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.connect((HOST, PORT))
-            s.send(b"DATA")
-            ack = s.recv(4)
-            if ack == b"ACK":
-                while True:
-                    line = pickle.loads(s.recv(4096))
-                    if not line or line == "END":
-                        break
-                    with open(file_path, "ab") as file:
-                        file.write(__decode_line(line, private_key))
-                    s.send(b"ACK")
-                return file_path
-            
-            return None
-        except:
-            return None
-
-
-def receive_data(filename: str, extension: str) -> Tuple[Union[str, None], Union[str, None]]:
+def receive_data(filename: str, extension: str) -> Union[str, None]:
     private_key = __init_connection()
     
     if private_key == None:
@@ -115,7 +93,6 @@ def receive_data(filename: str, extension: str) -> Tuple[Union[str, None], Union
     
     __send_filename_and_extension(filename, extension)
 
-    ecnrypted_keys_filename = __receive_keys(filename, private_key)
-    encrypted_data_filename = __receive_file(filename, extension, private_key)
+    ecnrypted_master_key_filename = __receive_master_key(filename, private_key)
 
-    return ecnrypted_keys_filename, encrypted_data_filename
+    return ecnrypted_master_key_filename
