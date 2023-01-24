@@ -47,6 +47,18 @@ def __init_connection() -> Union[rsa.RSAPrivateKey, None]:
                 return private_key
         
         return None
+    
+
+def __send_filename_and_extension(filename: str, extension: str) -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.connect((HOST, PORT))
+            s.send(b"FNEX")
+            ack = s.recv(4)
+            if ack == b"ACK":
+                s.send(f"{filename}/{extension}".encode())
+        except:
+            return
 
 
 def __receive_keys(filename: str, private_key: rsa.RSAPrivateKey) -> Union[str, None]:
@@ -57,7 +69,6 @@ def __receive_keys(filename: str, private_key: rsa.RSAPrivateKey) -> Union[str, 
             s.send(b"KEYS")
             ack = s.recv(4)
             if ack == b"ACK":
-                s.send(f"{filename}".encode())
                 while True:
                     line = pickle.loads(s.recv(256))
                     if not line or line == "END":
@@ -100,6 +111,8 @@ def receive_data(filename: str, extension: str) -> Tuple[Union[str, None], Union
     if private_key == None:
         return None, None
     
+    __send_filename_and_extension(filename, extension)
+
     ecnrypted_keys_filename = __receive_keys(filename, private_key)
     encrypted_data_filename = __receive_file(filename, extension)
 
