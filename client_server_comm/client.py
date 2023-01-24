@@ -86,7 +86,7 @@ def __receive_keys(filename: str, private_key: rsa.RSAPrivateKey) -> Union[str, 
 
 
 def __receive_file(filename: str, extension: str, private_key: rsa.RSAPrivateKey) -> Union[str, None]:
-    file_path = f"{filename}-encrypted.{extension}"
+    file_path = f"{filename}-encrypted{extension}"
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((HOST, PORT))

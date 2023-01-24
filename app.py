@@ -22,7 +22,7 @@ def start_gui():
 
 def ftp_test():
     print(ftp_client.get_file_list())
-    ftp_client.upload("test_files\\test-document-original.txt")
+    ftp_client.upload("test_files\\test-document.txt")
 
 
 def round_robin_crypto_jpg_test():

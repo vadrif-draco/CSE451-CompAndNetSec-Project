@@ -56,7 +56,7 @@ def send_keys(filename: str, public_key: rsa.RSAPublicKey, conn: socket) -> None
 
 
 def send_data(filename: str, extension: str, public_key: rsa.RSAPublicKey, conn: socket) -> None:
-    file = f"/home/test/ftp/{filename}-encrypted.{extension}"
+    file = f"/home/test/ftp/{filename}-encrypted{extension}"
     __send_file(file, public_key, conn)
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
