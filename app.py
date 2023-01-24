@@ -2,6 +2,27 @@ import numpy as np
 from gui import main
 from ftp import ftp_client
 from crypto import des, aes128, custom, util, round_robin_crypto
+from Crypto.Cipher import AES
+
+
+def start_gui():
+
+    master_key = None
+
+    try:
+        temp_master_key = np.array(np.fromfile("MASTER_KEY")).tobytes()
+        AES.new(temp_master_key, AES.MODE_EAX)
+        master_key = temp_master_key
+
+    except Exception as ex:
+        print(ex)
+
+    main.start(master_key)
+
+
+def ftp_test():
+    print(ftp_client.get_file_list())
+    ftp_client.upload("test_files\\test-document-original.txt")
 
 
 def round_robin_crypto_jpg_test():
@@ -87,11 +108,10 @@ def custom_algo_avalanche_effect_test():
 
 if __name__ == "__main__":
     # -------------------- GUI --------------------
-    main.start()
+    start_gui()
 
     # -------------------- FTP --------------------
-    # print(ftp_client.get_file_list())
-    # ftp_client.upload("test_files\\test-document-original.txt")
+    # ftp_test()
 
     # ------------- RoundRobin Crypto -------------
     # round_robin_crypto_txt_test()
