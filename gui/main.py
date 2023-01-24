@@ -196,7 +196,7 @@ def __unsecure_upload():
             child.destroy()
         file = util.File(UPLOAD_FILEPATH.get())
         meter = __create_meter("Uploading data", "warning")
-        __upload(file, meter)
+        __upload([file], meter)
 
 
 def __create_meter(label, bootstyle):
