@@ -1,174 +1,175 @@
 import numpy as np
 from . import custom_tables as tables
-from . import util
 
-DEBUG = 0
-debug_data_enc = []
-debug_data_dec = []
+__TEST = 0
+__TEST_DATA_ENC = []
+__TEST_DATA_DEC = []
 
-KEY_CACHE = None
+CACHES: dict[str, np.ndarray] = {}
 
 
-def encrypt(message: np.ndarray, key: np.ndarray, cached=False):
-    key.flags.writeable = False
-    keys = KEY_CACHE if cached else __generate_keys(seed=key)
+def encrypt(data: np.ndarray, key: np.ndarray, use_caches=False):
 
+    # Generate the keys and S-Boxes to be used in encryption and cache for reuse
+    if not use_caches: __generate_and_cache_internal_keys_and_sboxes(seed=key)
+
+    # Go through the 7*6 rounds with them
     for round_number in range(7):
         for inner_round_number in range(6):
-            message = __inner_round(
-                message,
+            data = __inner_round(
+                data,
                 inner_round_number,
-                keys[round_number][inner_round_number],
-                keys[round_number][inner_round_number + 6]
+                CACHES['keys'][round_number][inner_round_number],
+                CACHES['sboxes'][round_number][inner_round_number]
             )
 
-    return message
+    return data
 
 
-def decrypt(cipher: np.ndarray, key: np.ndarray, cached=False):
-    key.flags.writeable = False
-    keys = KEY_CACHE if cached else __generate_keys(seed=key)
+def decrypt(data: np.ndarray, key: np.ndarray, use_caches=False):
 
+    # Generate the keys and S-Boxes to be used in decryption and cache for reuse
+    if not use_caches: __generate_and_cache_internal_keys_and_sboxes(seed=key)
+
+    # Go through the 7*6 rounds with thems backwards
     for round_number in range(7)[::-1]:
         for inner_round_number in range(6)[::-1]:
-            cipher = __inverse_inner_round(
-                cipher,
+            data = __inverse_inner_round(
+                data,
                 inner_round_number,
-                keys[round_number][inner_round_number],
-                keys[round_number][inner_round_number + 6]
+                CACHES['keys'][round_number][inner_round_number],
+                CACHES['inverse_sboxes'][round_number][inner_round_number]
             )
 
-    return cipher
+    return data
 
 
-# FIXME: Defeat the avalanche effect
-def __generate_keys(seed: np.ndarray):
-    global KEY_CACHE
-
-    # Generate keys for all rounds and their inner rounds
-    # The 6 + 6 refers to the 6 keys used by each inner round's initial XOR, plus the 6 keys used by the terminal XOR
-    keys_int64 = np.random.RandomState(seed).randint(low=0, high=2**64, dtype=np.uint64, size=(7 * (6 + 6), 1))
-
-    # Convert from int64 value to 64-bit vectors
-    keys_bits = np.apply_along_axis(lambda decimal: util.dec_val_to_bit_vec(
-        decimal[0], min_width=64), 1, keys_int64)
-
-    # Reshape for 7 rounds and 6+6 inner rounds of 64-bit keys
-    KEY_CACHE = np.reshape(keys_bits, (7, 12, 64))
-    return KEY_CACHE
-
-
-def __swap_bits(i1_original: np.ndarray, i2_original: np.ndarray, inner_round_number, shift_size):
-    i1_masked = np.bitwise_and(i1_original, tables.I1_MASKS[inner_round_number])
-    i2_masked = np.bitwise_and(i2_original, tables.I2_MASKS[inner_round_number])
-
-    if DEBUG:
-        debug_data_enc.append({})
-        debug_data_enc[-1]['i1_masked'] = np.packbits(np.hsplit(i1_masked, 8))
-        debug_data_enc[-1]['i2_masked'] = np.packbits(np.hsplit(i2_masked, 8))
-
-    return np.bitwise_or(np.roll(i1_masked, -shift_size), np.roll(i2_masked, shift_size))
+def __generate_and_cache_internal_keys_and_sboxes(seed: np.ndarray):
+    seed.flags.writeable = False
+    seeded_rng = np.random.RandomState(seed)
+    sboxes = np.zeros((7, 6, 256), dtype=np.uint8)
+    inverse_sboxes = np.zeros((7, 6, 256), dtype=np.uint8)
+    for i in range(7):
+        for j in range(6):
+            sbox = seeded_rng.permutation(256)
+            sboxes[i][j] = sbox
+            inverse_sbox = np.zeros(256, dtype=np.uint8)
+            inverse_sbox[sbox] = np.arange(256)
+            inverse_sboxes[i][j] = inverse_sbox
+    global CACHES
+    CACHES['sboxes'] = sboxes
+    CACHES['inverse_sboxes'] = inverse_sboxes
+    CACHES['keys'] = seeded_rng.randint(low=0, high=2, size=(7, 6, 64), dtype=np.uint8)
 
 
-def __reverse_swap_bits(swapped_bits: np.ndarray, shift_size):
-    i1_unmasked = np.roll(swapped_bits, shift_size)
-    i2_unrolled = np.roll(swapped_bits, -shift_size)
+def __inner_round(ir_input: np.ndarray, ir_number: int, ir_key: np.ndarray, ir_sbox: np.ndarray):
 
-    return i1_unmasked, i2_unrolled
+    # Perform substitutions on the input with the round's byte-based S-Box
+    substituted = np.unpackbits(np.take(ir_sbox, np.packbits(ir_input)))
 
+    # Take the XOR of the result
+    substituted_xored = np.bitwise_xor(substituted, ir_key)
 
-def __inner_round(i1_original: np.ndarray, inner_round_number, keyi: np.ndarray, key6: np.ndarray):
-    shift_size = np.power(2, inner_round_number)
+    # Mask the two to isolate the bits which we will swap later
+    substituted_masked = np.bitwise_and(substituted, tables.I1_MASKS[ir_number])
+    substituted_xored_masked = np.bitwise_and(substituted_xored, tables.I2_MASKS[ir_number])
 
-    i2_original = np.bitwise_xor(i1_original, key6)
+    # Calculate shift size by which to roll the bits in opposite directions for the swap
+    shift_size = np.power(2, ir_number)
 
-    swap = __swap_bits(i1_original, i2_original, inner_round_number, shift_size)
+    # Roll them left and right by shift size then OR them to perform this round's swap
+    rolled_left = np.roll(substituted_masked, -shift_size)
+    rolled_right = np.roll(substituted_xored_masked, shift_size)
+    substituted_halfxorswap = np.bitwise_or(rolled_left, rolled_right)
 
-    ciphertext = np.bitwise_xor(swap, keyi)
+    # Transpose the 8x8 representation of the 64 bits (vital for the S-Box used above to work)
+    result = substituted_halfxorswap.reshape((8, 8)).transpose().reshape(64)
 
-    if DEBUG:
-        debug_data_enc[-1]['shift_size'] = shift_size
-        debug_data_enc[-1]['key6'] = np.packbits(np.hsplit(key6, 8))
-        debug_data_enc[-1]['keyi'] = np.packbits(np.hsplit(keyi, 8))
-        debug_data_enc[-1]['i1'] = np.packbits(np.hsplit(i1_original, 8))
-        debug_data_enc[-1]['i2'] = np.packbits(np.hsplit(i2_original, 8))
-        debug_data_enc[-1]['swap'] = np.packbits(np.hsplit(swap, 8))
-        debug_data_enc[-1]['ciphertext'] = np.packbits(np.hsplit(ciphertext, 8))
+    if __TEST:
+        __TEST_DATA_ENC.append({})
+        __TEST_DATA_ENC[-1]['irin'] = np.packbits(ir_input)
+        __TEST_DATA_ENC[-1]['subs'] = np.packbits(substituted_masked)
+        __TEST_DATA_ENC[-1]['sxor'] = np.packbits(substituted_xored_masked)
+        __TEST_DATA_ENC[-1]['shxs'] = np.packbits(substituted_halfxorswap)
+        __TEST_DATA_ENC[-1]['rslt'] = np.packbits(result)
 
-    return ciphertext
-
-
-def __inverse_inner_round(ciphertext: np.ndarray, inner_round_number, keyi: np.ndarray, key6: np.ndarray):
-    shift_size = np.power(2, inner_round_number)
-
-    swap = np.bitwise_xor(ciphertext, keyi)
-
-    i1_unmasked, i2_unrolled = __reverse_swap_bits(swap, shift_size)
-
-    i2_unmasked = np.bitwise_xor(i2_unrolled, key6)
-
-    i1_masked = np.bitwise_and(i1_unmasked, tables.I1_MASKS[inner_round_number])
-    i2_masked = np.bitwise_and(i2_unmasked, tables.I2_MASKS[inner_round_number])
-
-    plaintext = np.bitwise_or(i1_masked, i2_masked)
-
-    if DEBUG:
-        debug_data_dec.append({})
-        debug_data_dec[-1]['shift_size'] = shift_size
-        debug_data_dec[-1]['keyi'] = np.packbits(np.hsplit(keyi, 8))
-        debug_data_dec[-1]['key6'] = np.packbits(np.hsplit(key6, 8))
-        debug_data_dec[-1]['swap'] = np.packbits(np.hsplit(swap, 8))
-        debug_data_dec[-1]['i1_unmasked'] = np.packbits(np.hsplit(i1_unmasked, 8))
-        debug_data_dec[-1]['i2_unroll'] = np.packbits(np.hsplit(i2_unrolled, 8))
-        debug_data_dec[-1]['i2_unmasked'] = np.packbits(np.hsplit(i2_unmasked, 8))
-        debug_data_dec[-1]['i1_masked'] = np.packbits(np.hsplit(i1_masked, 8))
-        debug_data_dec[-1]['i2_masked'] = np.packbits(np.hsplit(
-            np.bitwise_and(i2_unrolled, tables.I2_MASKS[inner_round_number]),
-            8
-        ))
-        debug_data_dec[-1]['plaintext'] = np.packbits(np.hsplit(plaintext, 8))
-        debug_data_dec[-1]['ciphertext'] = np.packbits(np.hsplit(ciphertext, 8))
-
-    return plaintext
+    return result
 
 
-def test():
-    global DEBUG
-    DEBUG = 1
+def __inverse_inner_round(ir_input: np.ndarray, ir_number: int, ir_key: np.ndarray, ir_inverse_sbox: np.ndarray):
 
-    np.set_printoptions(formatter={'int': hex})  # To print in hex
+    # Undo the transpose operation from the last step of the corresponding encryption round
+    substituted_halfxorswap = ir_input.reshape((8, 8)).transpose().reshape(64)
+
+    # Calculate shift size by which to unroll the bits to undo the round's swap
+    shift_size = np.power(2, ir_number)
+
+    # Roll them right and left by shift size to undo the roll from encryption (but note that they're not masked!)
+    unrolled_left = np.roll(substituted_halfxorswap, shift_size)
+    unrolled_right = np.roll(substituted_halfxorswap, -shift_size)
+
+    # Restore the substituted-only portion, which is the unrolled left portion when masked
+    substituted_masked = np.bitwise_and(unrolled_left, tables.I1_MASKS[ir_number])
+
+    # Restore the substituted-and-xored portion, which is the unrolled right portion when masked after undoing the XOR
+    substituted_unxored = np.bitwise_xor(unrolled_right, ir_key)
+    substituted_unxored_masked = np.bitwise_and(substituted_unxored, tables.I2_MASKS[ir_number])
+
+    # Restore the substituted text by taking the OR of the restored portions above
+    substituted = np.bitwise_or(substituted_masked, substituted_unxored_masked)
+
+    # Undo the substituted with the round's inverse byte-based S-box
+    unsubstituted = np.unpackbits(np.take(ir_inverse_sbox, np.packbits(substituted)))
+
+    if __TEST:
+        __TEST_DATA_DEC.append({})
+        __TEST_DATA_DEC[-1]['irin'] = np.packbits(ir_input)
+        __TEST_DATA_DEC[-1]['shxs'] = np.packbits(substituted_halfxorswap)
+        __TEST_DATA_DEC[-1]['sxor'] = np.packbits(np.bitwise_and(unrolled_right, tables.I2_MASKS[ir_number]))
+        __TEST_DATA_DEC[-1]['subs'] = np.packbits(substituted_masked)
+        __TEST_DATA_DEC[-1]['rslt'] = np.packbits(unsubstituted)
+
+    return unsubstituted
+
+
+def internal_test():
+    global __TEST
+    __TEST = 1
 
     message = np.array([np.random.choice([0, 1]) for _ in range(64)])
-    print(f"message:\n{np.packbits(np.hsplit(message, 8))}\n")
-
     key = np.array([np.random.choice([0, 1]) for _ in range(256)])
-    print(f"key:\n{np.packbits(np.hsplit(key, 8))}\n")
+    encrypted = encrypt(message, key)
+    decrypted = decrypt(encrypted, key)
 
-    cipher = encrypt(message, key)
-    print(f"cipher:\n{np.packbits(np.hsplit(cipher, 8))}\n")
-
-    recovered_message = decrypt(cipher, key)
-    print(f"recovered_message:\n{np.packbits(np.hsplit(recovered_message, 8))}\n")
+    print(f"Key: {np.packbits(key)}")
+    print(f"Original:  {np.packbits(message)}")
+    print(f"Decrypted: {np.packbits(decrypted)}")
+    print(f"Encrypted: {np.packbits(encrypted)}")
 
     for round_number in range(7):
-        print(f"------- round_number {round_number} -------\n")
         for inner_round_number in range(6):
             i = round_number * 6 + inner_round_number
             print(
-                f"---- inner_round_number {inner_round_number} ----\n"
-                f"i={i}\n"
-                f"plaintext:\nEnc: {debug_data_enc[i]['i1']}\nDec: {debug_data_dec[41-i]['plaintext']}\n\n"
-                f"key{inner_round_number}:\nEnc: {debug_data_enc[i]['keyi']}\nDec: {debug_data_dec[41-i]['keyi']}\n\n"
-                f"key6:\nEnc: {debug_data_enc[i]['key6']}\nDec: {debug_data_dec[41-i]['key6']}\n\n"
-                f"i1_masked:\nEnc: {debug_data_enc[i]['i1_masked']}\nDec: {debug_data_dec[41-i]['i1_masked']}\n\n"
-                f"i2_masked:\nEnc: {debug_data_enc[i]['i2_masked']}\nDec: {debug_data_dec[41-i]['i2_masked']}\n\n"
-                f"swap:\nEnc: {debug_data_enc[i]['swap']}\nDec: {debug_data_dec[41-i]['swap']}\n\n"
-                f"ciphertext:\n{debug_data_enc[i]['ciphertext']}\n{debug_data_dec[41-i]['ciphertext']}\n"
-                f"-------------------------------\n\n"
+                f"Encryption round number: {1+round_number}:{1+inner_round_number}\n"
+                f"Decryption round number: {7-round_number}:{6-inner_round_number}\n"
+                "\n"
+                f"Encryption round input:  {__TEST_DATA_ENC[i]['irin']}\n"
+                f"Encryption round result: {__TEST_DATA_ENC[i]['rslt']}\n"
+                f"Decryption round input:  {__TEST_DATA_DEC[41-i]['irin']}\n"
+                f"Decryption round result: {__TEST_DATA_DEC[41-i]['rslt']}\n"
+                "\n"
+                f"Encryption substituted masked input: {__TEST_DATA_ENC[i]['subs']}\n"
+                f"Decryption substituted masked input: {__TEST_DATA_DEC[41-i]['subs']}\n"
+                "\n"
+                f"Encryption substituted-xored masked input: {__TEST_DATA_ENC[i]['sxor']}\n"
+                f"Decryption substituted-xored masked input: {__TEST_DATA_DEC[41-i]['sxor']}\n"
+                "\n"
+                f"Encryption half-substituted-xored swapped input: {__TEST_DATA_ENC[i]['shxs']}\n"
+                f"Decryption half-substituted-xored swapped input: {__TEST_DATA_DEC[41-i]['shxs']}\n"
+                "\n"
+                "\n"
             )
-
-    np.set_printoptions()  # To reset printing to its default
 
 
 if __name__ == "__main__":
-    test()
+    internal_test()
