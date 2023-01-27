@@ -1,20 +1,30 @@
-# CSE451-CompAndNetSec-Project
-This is the project for the CSE451 Computer and Networks Security course in the Faculty of Engineering, Ain Shams University. In this project, we implement secure file transfer over FTP.
+# Table of Contents
+- [Project Synopsis](#project-synopsis)
+- [Summary of Operation](#summary-of-operation)
+- [Demo](#demo)
+- [Our Custom Algorithm](#our-custom-algorithm)
+- [Tests](#tests)
+- [GUI](#gui)
+- [Dependencies](#dependencies)
+
+
+# Project Synopsis
+This is the project for the CSE451 Computer and Networks Security course taught by Prof. Dr. Ayman Bahaa at the Faculty of Engineering, Ain Shams University. In this project, we implement secure file transfer and authentication over FTP using **_from scratch_** implementations of DES, AES, and an algorithm of our own with a GUI application to enable users to securely upload and retrieve files from the FTP server.
 
 
 # Summary of Operation
-1. We have content that we wish to transfer via vanilla FTP securely
-2. We obtain a master key unique to us, to be used by us for encrypting our own content before transfer
+1. We have content that we wish to transfer via vanilla FTP securely.
+2. We obtain a master key unique to us whose usage will be discussed later.
 3. The content is split into `N` parts where `N = content size in bytes / 16` such that these parts are cycled in a round robin fashion through three block cipher cryptography algorithms **_that we implemented from scratch_** which are our custom algorithm, DES, and AES (128-bit key version). Parts are either split in two into our custom algorithm and DES (which both take 8 bytes of input plaintext) or taken as a whole by AES (for 16 byte plaintext input).
-4. We apply PKCS5 padding in this process and use ECB for the block cipher mode of operation
-5. The three algorithms use keys that are randomly generated on the fly, which are then concatenated into one entity and encrypted with the master key with AES 256-bit with PKCS7 padding and ECB mode of operation.
+4. We apply PKCS5 padding in this process and use ECB for the block cipher mode of operation.
+5. The three algorithms use keys that are randomly generated on the fly, which are then concatenated into one entity and encrypted with the aforementioned master key using AES 256-bit with PKCS7 padding and ECB mode of operation.
 6. Now we have two files: An encrypted data file and an encrypted keys file.
-7. For the data file, we simply invoke the STOR command to store it on the vanilla FTP server.
+7. For the data file, we simply invoke the `STOR` command to store it on the vanilla FTP server.
 8. For the keys file, we request the public certificate of the FTP server such that we encrypt the master key with it using RSA, then upload that to the FTP server.
 9. On the receiving end, to request a file a user must first request the master key, and they do so by sending their public certificate to the FTP server such that it can be encrypted and sent to the user to decrypt at their end.
-10. As for the data file, it is afterwards fetched with a RETR command then decrypted using the keys that would be unconcatenated and decrypted using the master key obtained in the previous step.
+10. As for the data file, it is afterwards fetched with a `RETR` command then decrypted using the keys that would be unconcatenated and decrypted using the master key obtained in the previous step.
 
-Note that the FTP server can be hosted on one of the clients ends or as a separate node (which the case in our project as we deployed the server over an **_Azure VM_**) while still being secure in both cases.
+Note that the FTP server can be hosted on one of the clients' ends, or as a separate node (which is the case in our project as we deployed the server over an **_Azure VM_**) while still being secure in both cases.
 
 **Here is another representation of the operational summary through a collaboration diagram for any two clients and a server:**
 
@@ -51,7 +61,7 @@ https://user-images.githubusercontent.com/55457021/214977213-3b416668-e1bb-4164-
 - `custom_algo_test_zeros` tests our custom algorithm's encryption and decryption of a block of zeros (check if plaintext recovery is ok).
 - `custom_algo_avalanche_effect_test` tests all-zeros, one-bit-flip in message, and one-bit-flip in key to demonstrate the strength of the custom algorithm's avalanche effect.
 - `custom_algo_avalanche_effect_test2` is a stronger test than the previous one, encrypting 1000 different plaintexts and comparing each to get the minimum, maximum, mean, and median statistics of no. of bits changed between every two consecutive ciphertexts, again to demonstrate the strength of the custom algorithm's avalanche effect.
-- In the GUI, there's an `Uunsecure Upload` button to test the integration of the FTP server in the backend with the file browse and upload GUI in the frontend without performing any encryption along the way.
+- In the GUI, there's an `Unsecure Upload` button to test the integration of the FTP server in the backend with the file browse and upload GUI in the frontend without performing any encryption along the way.
 
 
 # GUI
@@ -60,7 +70,7 @@ The GUI was made using `ttkbootstrap` which is a wrapper around the `tkinter` li
 
 # Dependencies
 The following libraries and tool were used:
-- `python-ftp-server` for hosting the FTP server.
+- `python-ftp-server` and `vsftpd` for hosting the FTP server.
 - `ftplib` for the FTP client code.
 - `ttkbootstrap` and `tkinter` for the GUI.
 - `os` for browsing file to upload / folder to download.
